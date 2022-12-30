@@ -122,8 +122,8 @@ def generate_displacement_heatmap(
 
             for x in range(start_x, end_x):
                 for y in range(start_y, end_y):
-                    if 1 / diagonal_length < displacement_weights[k, y, x]:
-                        # keep the gt displacement of smaller instance
+                    if 0 < displacement_weights[k, y, x] < 1 / diagonal_length:
+                        # keep the gt displacement of larger instance
                         continue
 
                     displacement_weights[k, y, x] = 1 / diagonal_length
