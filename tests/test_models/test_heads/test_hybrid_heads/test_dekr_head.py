@@ -41,7 +41,7 @@ class TestDEKRHead(TestCase):
         head = DEKRHead(in_channels=32, num_keypoints=17)
 
         feats = [torch.rand(1, 32, 128, 128)]
-        output = head.forward(feats)  # should be (heatmaps, tags)
+        output = head.forward(feats)  # should be (heatmaps, displacements)
         self.assertTrue(is_tuple_of(output, torch.Tensor))
         self.assertEqual(output[0].shape, (1, 18, 128, 128))
         self.assertEqual(output[1].shape, (1, 34, 128, 128))

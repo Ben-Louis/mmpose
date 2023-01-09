@@ -8,7 +8,8 @@ from torch import Tensor
 from mmpose.registry import KEYPOINT_CODECS
 from .base import BaseKeypointCodec
 from .utils import (batch_heatmap_nms, generate_displacement_heatmap,
-                    generate_gaussian_heatmaps)
+                    generate_gaussian_heatmaps, get_diagonal_lengths,
+                    get_instance_root)
 
 
 @KEYPOINT_CODECS.register_module()
@@ -116,88 +117,6 @@ class RootDisplacement(BaseKeypointCodec):
                                         'is True. e.g. sigma=(4, 2)'
             self.sigma = sigma
 
-    def _get_diagonal_lengths(self,
-                              keypoints: np.ndarray,
-                              keypoints_visible: Optional[np.ndarray] = None
-                              ) -> np.ndarray:
-        """Calculate the diagonal length of instance bounding box from visible
-        keypoints.
-
-        Args:
-            keypoints (np.ndarray): Keypoint coordinates in shape (N, K, D)
-            keypoints_visible (np.ndarray): Keypoint visibilities in shape
-                (N, K)
-
-        Returns:
-            np.ndarray: bounding box diagonal length in [N]
-        """
-        diagonal_length = np.zeros((keypoints.shape[0]), dtype=np.float32)
-        for i in range(keypoints.shape[0]):
-            if keypoints_visible is not None:
-                visible_keypoints = keypoints[i][keypoints_visible[i] > 0]
-            else:
-                visible_keypoints = keypoints[i]
-            if visible_keypoints.size == 0:
-                continue
-
-            h_w_diff = visible_keypoints.max(axis=0) - visible_keypoints.min(
-                axis=0)
-            diagonal_length[i] = np.sqrt(np.power(h_w_diff, 2).sum())
-        return diagonal_length
-
-    def _get_instance_root(self,
-                           keypoints: np.ndarray,
-                           keypoints_visible: Optional[np.ndarray] = None
-                           ) -> np.ndarray:
-        """Calculate the coordinates and visibility of instance roots.
-
-        Args:
-            keypoints (np.ndarray): Keypoint coordinates in shape (N, K, D)
-            keypoints_visible (np.ndarray): Keypoint visibilities in shape
-                (N, K)
-
-        Returns:
-            tuple
-            - roots_coordinate (np.ndarray): Coordinates of instance roots in
-                shape [N, D]
-            - roots_visible (np.ndarray): Visibility of instance roots in
-                shape [N]
-        """
-        W, H = self.heatmap_size
-
-        roots_coordinate = np.zeros((keypoints.shape[0], 2), dtype=np.float32)
-        roots_visible = np.zeros((keypoints.shape[0]), dtype=np.float32)
-
-        for i in range(keypoints.shape[0]):
-
-            # collect visible keypoints
-            if keypoints_visible is not None:
-                visible_keypoints = keypoints[i][keypoints_visible[i] > 0]
-            else:
-                visible_keypoints = keypoints[i]
-            if visible_keypoints.size == 0:
-                continue
-
-            # compute the instance root with visible keypoints
-            if self.root_type == 'kpt_center':
-                roots_coordinate[i] = visible_keypoints.mean(axis=0)
-            elif self.root_type == 'bbox_center':
-                roots_coordinate[i] = (visible_keypoints.max(axis=0) +
-                                       visible_keypoints.min(axis=0)) / 2.0
-            else:
-                raise ValueError(
-                    f'the value of `root_type` must be \'kpt_center\' or '
-                    f'\'bbox_center\', but got \'{self.root_type}\'')
-
-            # compute the visibility of roots
-            if roots_coordinate[i][0] >= W or roots_coordinate[i][
-                    1] >= H or roots_coordinate[i].min() < 0:
-                roots_visible[i] = 0
-            else:
-                roots_visible[i] = 2
-
-        return roots_coordinate, roots_visible
-
     def _get_heatmap_weights(self,
                              heatmaps,
                              fg_weight: float = 1,
@@ -250,10 +169,9 @@ class RootDisplacement(BaseKeypointCodec):
         _keypoints = keypoints / self.scale_factor
 
         # compute the root and scale of each instance
-        roots, roots_visible = self._get_instance_root(_keypoints,
-                                                       keypoints_visible)
-        diagonal_lengths = self._get_diagonal_lengths(_keypoints,
-                                                      keypoints_visible)
+        roots, roots_visible = get_instance_root(_keypoints, keypoints_visible,
+                                                 self.root_type)
+        diagonal_lengths = get_diagonal_lengths(_keypoints, keypoints_visible)
 
         # discard the small instances
         roots_visible[diagonal_lengths < self.minimal_diagonal_length] = 0
