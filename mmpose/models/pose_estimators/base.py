@@ -106,7 +106,7 @@ class BasePoseEstimator(BaseModel, metaclass=ABCMeta):
 
     def forward(self,
                 inputs: torch.Tensor,
-                data_samples: OptSampleList,
+                data_samples: OptSampleList=None,
                 mode: str = 'tensor') -> ForwardResults:
         """The unified entry for a forward process in both training and test.
 
@@ -150,7 +150,7 @@ class BasePoseEstimator(BaseModel, metaclass=ABCMeta):
                     data_sample.set_metainfo(self.metainfo)
             return self.predict(inputs, data_samples)
         elif mode == 'tensor':
-            return self._forward(inputs)
+            return self._forward(inputs, data_samples)
         else:
             raise RuntimeError(f'Invalid mode "{mode}". '
                                'Only supports loss, predict and tensor mode.')
@@ -180,7 +180,7 @@ class BasePoseEstimator(BaseModel, metaclass=ABCMeta):
 
         x = self.extract_feat(inputs)
         if self.with_head:
-            x = self.head.forward(x)
+            x = self.head.forward(x, data_samples)
 
         return x
 

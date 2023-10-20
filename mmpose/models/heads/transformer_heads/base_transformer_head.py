@@ -10,6 +10,13 @@ from mmpose.utils.typing import (Features, OptConfigType, OptMultiConfig,
                                  OptSampleList, Predictions)
 from ..base_head import BaseHead
 
+from addict import Addict
+data_sample = [Addict(dict(
+    batch_input_shape=(1333, 800),
+    img_shape=(1333, 800),
+    metainfo=dict(input_size=(1333, 800))
+))]
+
 
 @MODELS.register_module()
 class TransformerHead(BaseHead):
@@ -58,13 +65,16 @@ class TransformerHead(BaseHead):
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList = None) -> Dict:
         """Forward the network."""
+        if batch_data_samples is None:
+            batch_data_samples = data_sample * feats[0].size(0)
+        
         encoder_outputs_dict = self.forward_encoder(feats, batch_data_samples)
 
         decoder_outputs_dict = self.forward_decoder(**encoder_outputs_dict)
 
         head_outputs_dict = self.forward_out_head(batch_data_samples,
                                                   **decoder_outputs_dict)
-        return head_outputs_dict
+        return head_outputs_dict[0]
 
     @abstractmethod
     def predict(self,
